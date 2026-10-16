@@ -5,6 +5,7 @@ import { OrbitControls, Grid } from '@react-three/drei'
 import Papa from 'papaparse'
 import './App.css'
 
+
 type Product = {
   id: string
   name: string
@@ -13,9 +14,13 @@ type Product = {
   width: number
   depth: number
   height: number
+  actualWidth: number | null
+  actualDepth: number | null
+  actualHeight: number | null
   color: string
   demo?: boolean
 }
+
 
 type PlacedFurniture = Product & {
   instanceId: string
@@ -35,6 +40,9 @@ const DEMO_PRODUCTS: Product[] = [
     height: 0.55,
     color: '#D6C5AD',
     demo: true,
+    actualWidth: 1.4,
+    actualDepth: 2,
+    actualHeight: 0.55,
   },
   {
     id: 'demo-sofa',
@@ -46,6 +54,9 @@ const DEMO_PRODUCTS: Product[] = [
     height: 0.75,
     color: '#8EA49A',
     demo: true,
+    actualWidth: 1.4,
+    actualDepth: 2,
+    actualHeight: 0.55,
   },
   {
     id: 'demo-desk',
@@ -56,7 +67,9 @@ const DEMO_PRODUCTS: Product[] = [
     depth: 0.6,
     height: 0.74,
     color: '#C7A77B',
-    demo: true,
+    demo: true, actualWidth: 1.4,
+    actualDepth: 2,
+    actualHeight: 0.55,
   },
   {
     id: 'demo-wardrobe',
@@ -67,7 +80,9 @@ const DEMO_PRODUCTS: Product[] = [
     depth: 0.55,
     height: 1.9,
     color: '#E5DED2',
-    demo: true,
+    demo: true, actualWidth: 1.4,
+    actualDepth: 2,
+    actualHeight: 0.55,
   },
   {
     id: 'demo-table',
@@ -78,7 +93,9 @@ const DEMO_PRODUCTS: Product[] = [
     depth: 0.8,
     height: 0.72,
     color: '#B78E67',
-    demo: true,
+    demo: true, actualWidth: 1.4,
+    actualDepth: 2,
+    actualHeight: 0.55,
   },
 ]
 
@@ -122,18 +139,18 @@ function parsePrice(value: string): number | null {
   return Number.isFinite(number) && number >= 0 ? number : null
 }
 
+
 function parseDimension(
   row: Record<string, string>,
   candidates: string[],
-  fallback: number,
-): number {
+): number | null {
   const value = parseNumber(findValue(row, candidates))
-  if (!value) return fallback
+  if (value === null) return null
 
-  // 일반적인 IKEA CSV의 치수는 cm로 제공되는 경우가 많다.
-  // 10보다 큰 값은 cm로 보고 m 단위로 변환한다.
-  return value > 10 ? value / 100 : value
+  // 이 CSV의 치수 열은 cm 단위로 기록되어 있음.
+  return value / 100
 }
+
 
 function readProducts(rows: Record<string, string>[]): Product[] {
   return rows
@@ -166,21 +183,25 @@ function readProducts(rows: Record<string, string>[]): Product[] {
         '가격',
       ])
 
-      const width = parseDimension(
+
+      const actualWidth = parseDimension(
         row,
         ['width', 'productwidth', '너비', '가로'],
-        1,
       )
-      const depth = parseDimension(
+      const actualDepth = parseDimension(
         row,
         ['depth', 'productdepth', '깊이'],
-        0.6,
       )
-      const height = parseDimension(
+      const actualHeight = parseDimension(
         row,
         ['height', 'productheight', '높이'],
-        0.75,
       )
+
+      // 실제 치수가 없는 경우에만 3D 미리보기용 임시 크기를 사용한다.
+      const width = actualWidth ?? 1
+      const depth = actualDepth ?? 0.6
+      const height = actualHeight ?? 0.75
+
 
       return {
         id: `csv-${index}`,
@@ -190,6 +211,9 @@ function readProducts(rows: Record<string, string>[]): Product[] {
         width: Math.min(width, 4),
         depth: Math.min(depth, 4),
         height: Math.min(height, 3),
+        actualWidth,
+        actualDepth,
+        actualHeight,
         color: COLORS[index % COLORS.length],
       }
     })
@@ -583,7 +607,11 @@ export default function App() {
                         : formatWon(product.price)}
                     </span>
                     <small>
-                      {product.width.toFixed(2)} × {product.depth.toFixed(2)} m
+
+                      {product.actualWidth !== null && product.actualDepth !== null
+                        ? `${product.actualWidth.toFixed(2)} × ${product.actualDepth.toFixed(2)} m`
+                        : '치수 정보 없음'}
+
                     </small>
                   </div>
                   <button
@@ -810,9 +838,8 @@ export default function App() {
                 {furniture.map((item) => (
                   <button
                     key={item.instanceId}
-                    className={`placed-item ${
-                      selectedId === item.instanceId ? 'selected' : ''
-                    }`}
+                    className={`placed-item ${selectedId === item.instanceId ? 'selected' : ''
+                      }`}
                     onClick={() => setSelectedId(item.instanceId)}
                   >
                     <span
